@@ -9,6 +9,7 @@ from werkzeug.wrappers import Response
 from werkzeug.wsgi import wrap_file
 from functools import cached_property
 from minio import Minio
+from minio.credentials import IamAwsProvider
 import frappe
 from frappe import _
 from frappe.core.doctype.file.file import File
@@ -155,6 +156,15 @@ class DFPExternalStorage(Document):
 						region=self.region,
 						secure=self.secure,
 					)
+
+				# No keys anywhere: on AWS S3, use the EC2 instance role (IMDSv2)
+				if "amazonaws.com" in self.endpoint:
+					return MinioConnection(
+						endpoint=self.endpoint,
+						region=self.region,
+						secure=True,
+						credentials=IamAwsProvider(),
+					)
 			except Exception:
 				pass
 
@@ -163,13 +173,14 @@ class DFPExternalStorage(Document):
 
 
 class MinioConnection:
-	def __init__(self, endpoint:str, access_key:str, secret_key:str, region:str, secure:bool):
+	def __init__(self, endpoint:str, access_key:str=None, secret_key:str=None, region:str=None, secure:bool=True, credentials=None):
 		self.client = Minio(
 			endpoint=endpoint,
 			access_key=access_key,
 			secret_key=secret_key,
 			region=region,
 			secure=secure,
+			credentials=credentials,
 		)
 
 	def validate_bucket(self, bucket_name:str):
